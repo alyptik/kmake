@@ -1,0 +1,17 @@
+language: bash
+group: deprecated-2017Q4
+
+matrix:
+  include:
+    # works on Precise and Trusty
+    - os: linux
+       - MATRIX_EVAL="export PREFIX=~/.local"
+
+before_install:
+    - eval "${MATRIX_EVAL}"
+
+script:
+    - make
+    - make all
+    - make uninstall
+    - make install

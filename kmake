@@ -1,0 +1,230 @@
+#!/bin/bash
+#
+# kmake - helper script for buildroot/kernel builds outside of main source tree
+#
+# AUTHOR: Joey Pabalinas <joeypabalinas@gmail.com>
+# See LICENSE.md file for copyright and license details.
+
+# *** modify these directories to match your build tree ***
+#
+# >>> user configuration variables <<<
+#
+# "$base" is the root directory containing the kernel
+# _plus_ the buildroot source trees _plus_ the target
+# output subdirectories
+#
+base="kernel"
+
+# the default configuration uses:
+#
+#  $proj_dir/
+#  |..kernel/
+#    |..linux/
+#    |..buildroot/
+#    |..obj/
+#       |..linux-x86/
+#       |..buildroot-x86/
+#       |....target/usr/lib/modules/
+#    |..overlay/
+#       |..lib/modules/
+#
+# with "kernel/obj/" as the output target and
+# "kernel/buildroot" and "kernel/linux/" as the
+# two source trees
+#
+rm_cmd=("rm")
+make_cmd=("make")
+proj_dir="/store/code/projects"
+kern_src="linux"
+broot_src="buildroot"
+kern_build="obj/linux-x86"
+broot_build="obj/buildroot-x86"
+# buildroot overlay (needed to use kernel modules inside buildroot)
+root="$proj_dir/$base/overlay'"
+kmod_dir="$root/lib/modules"
+# modules copied from here into the "$kmod_dir" overlay
+bmod_dir="$proj_dir/$base/$broot_build/target/usr/lib/modules"
+
+# *** script modifications past this line are usually unnecessary ***
+#
+# internal script variables
+#
+save_dir="$PWD"
+out_dir="/foo/bar/oink/woof/i/am/best/placeholder"
+build_type=""
+append_args=("")
+mod_args=("")
+sparse_flag=""
+
+# usage information and build instructions
+readonly usage_short="usage: ${0##*/} {-b (buildroot)|-k (kernel)} [-chmns] [<build args>]"
+readonly usage_full="$(
+	printf '%s\n\n' "$usage_full;"
+	cat<<'EOF'
+	[instructions]:
+		after configuring your target build/source directories
+		using the variables at the top of the `./kmake` script:
+
+	[linux-kernel]:
+		`./kmake -k [-chmns]`
+
+	[buildroot]:
+		`./kmake -b [-chn]`
+
+	[optional flags]:
+		-c			append "nconfig" to build targets
+		-h			show help/usage information
+		-m			(-k only) install kernel modules to output target
+		-n			dry-run commands that will be run without building
+		-s			(-k only) enable sparse static analysis during kernel build
+EOF
+)"
+
+# date header generation perl script
+readonly date_hdr="use feature qw/say/; say('—'x72); say('Build Timestamp: '.\`date\`, '—'x72); say('')"
+
+# color terminal escapes
+if [[ -n "$TERM" && "$TERM" != dumb ]]; then
+	readonly rst="$(tput sgr0)"
+	readonly red="$(tput setaf 9)"
+	readonly grn="$(tput setaf 10)"
+	readonly ylw="$(tput setaf 11)"
+	readonly pnk="$(tput setaf 11)"
+else
+	readonly rst=""
+	readonly red=""
+	readonly grn=""
+	readonly ylw=""
+	readonly pnk=""
+fi
+# needed to shut up buildroot
+unset PERL_MM_OPT
+
+# cleanup traps
+function cleanup() {
+	local build_lines error_lines
+	build_lines="$(wc -l ../build.log.tmp 2>/dev/null | cut -f-1 -d' ')"
+	error_lines="$(wc -l ../error.log.tmp 2>/dev/null | cut -f-1 -d' ')"
+	[[ -z "$build_lines" ]] && build_lines=0
+	[[ -z "$error_lines" ]] && error_lines=0
+	if ((build_lines > 5)); then
+		printf 'build log (%s lines) written to ../build.log\n' "$build_lines"
+		cat ../build.log.tmp >>../build.log
+	fi
+	if ((error_lines > 5)); then
+		printf 'error log (%s lines) written to ../error.log\n' "$error_lines"
+		cat ../error.log.tmp >>../error.log
+	fi
+	rm -f ../build.log.tmp ../error.log.tmp
+	cd "$save_dir" || exit 1
+	trap - INT
+}
+trap '{ cleanup; kill -INT "$$"; }' INT
+trap '{ cleanup; }' ERR EXIT
+
+# option handling
+while getopts :bchkmns opt; do
+	case "$opt" in
+	# specify buildroot build
+	b)
+		[[ -n "$build_type" ]] && continue
+		build_type=b
+		;;
+	# append nconfig
+	c)
+		[[ "${append_args[*]}" == *nconfig* ]] && continue
+		append_args+=(nconfig)
+		;;
+	# specify kernel build
+	k)
+		[[ -n "$build_type" ]] && continue
+		build_type=k
+		;;
+	# install kernel modules
+	m)
+		[[ "${mod_args[*]}" == *modules_install* ]] && continue
+		mod_args+=("INSTALL_MOD_PATH=$root" modules_install)
+		;;
+	# dry-run commands without building
+	n)
+		rm_cmd=(echo rm)
+		make_cmd=(echo make)
+		;;
+	# enable sparse checks dumbring kernel build
+	s)
+		sparse_flag=1
+		;;
+	# show usage information
+	h)
+		printf '%s\n' "$usage_full" >&2
+		exit
+		;;
+	# wtf ???
+	:|?)
+		printf 'illegal option letter: %s\n' "'$OPTARG'" >&2
+		printf '%s\n' "$usage_full" >&2
+		exit 1
+		;;
+	esac
+done
+shift "$((OPTIND - 1))"
+
+# build command-line for either buildroot or kernel
+append_args=("$@")
+case "$build_type" in
+b)
+	src_dir="$proj_dir/$base/$broot_src"
+	out_dir="../$broot_build"
+	;;
+k)
+	src_dir="$proj_dir/$base/$kern_src"
+	out_dir="$proj_dir/$base/$kern_build"
+	[[ -n "$sparse_flag" ]] && append_args+=('C=1')
+	;;
+*)
+	printf '%s\n' "no build type specified: -b or -k required" >&2
+	printf '%s\n' "$usage_full" >&2
+	exit 1
+	;;
+esac
+
+# directory setup
+cd "$src_dir" || exit 1
+out_dir="$(realpath -e "${out_dir}" || printf '%s\n' '(error)')"
+
+# final command string printing
+printf 'executing: [%s %s %s]\n' \
+	"${rst}${ylw}${make_cmd[*]}${rst}" \
+	"${rst}${red}O=${out_dir}${rst}" \
+	"${rst}${grn}${append_args[*]}${rst}"
+printf 'build directory: [%s]\n' \
+	"${rst}${pnk}${src_dir}${rst}"
+printf 'output directory: [%s]\n' \
+	"${rst}${pnk}${out_dir}${rst}"
+printf 'kernel module directory: [%s]\n' \
+	"${rst}${pnk}${kmod_dir}${rst}"
+printf 'buildroot module directory: [%s]\n' \
+	"${rst}${pnk}${bmod_dir}${rst}"
+
+# date header generation
+perl -e "$date_hdr" | tee -a ../build.log.tmp
+
+# main build targets
+if [[ -n "$sparse_flag" ]]; then
+	perl -e "$date_hdr" >> ../error.log.tmp
+	# with sparse
+	"${make_cmd[@]}" O="$out_dir" "${append_args[@]}" \
+		2> >(tee -a ../error.log.tmp >&2) > >(tee -a ../build.log.tmp)
+else
+	# no sparse
+	"${make_cmd[@]}" O="$out_dir" "${append_args[@]}"
+fi
+
+# kernel module target (-k -m)
+if [[ -n "${mod_args[*]}" && -n "$kmod_dir" && -n "$bmod_dir" ]]; then
+	# guard against empty parameters expanding to `rm -rf /*`
+	"${rm_cmd[@]}" -rf "${kmod_dir:?}"/* "${bmod_dir:?}"/*
+	# module install
+	"${make_cmd[@]}" O="$out_dir" "${mod_args[@]}" \
+		2> >(tee -a ../error.log.tmp >&2) > >(tee -a ../build.log.tmp)
+fi

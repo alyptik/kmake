@@ -1,0 +1,62 @@
+cscope.out
+cscope.in.out
+cscope.po.out
+tags
+TAGS
+*.swp
+vgcore*
+
+# Binaries
+cepl
+t/*
+!t/*.c
+!t/*.h
+*.out
+
+# Profiling
+*.gcda
+*.gcno
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+*.d
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.old
+!/readline/lib
+!/readline/lib/*
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+.cepl_history
+*.tar.gz
+debug.mk
+asan.mk
+
+# vi:ft=cfg:
