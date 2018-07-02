@@ -7,6 +7,7 @@
 
 # configuration
 TARGET := kmake
+BINDIR := bin
 DESTDIR ?=
 PREFIX ?= /usr/local
 
@@ -18,7 +19,7 @@ all: | uninstall
 install: $(TARGET)
 	@echo "installing to \"$(PREFIX)\"..."
 	mkdir -p $(DESTDIR)$(PREFIX)/$(BINDIR)
-	install -c $(TARGET) $(DESTDIR)$(PREFIX)/$(BINDIR)
+	install -c $(TARGET) $(DESTDIR)$(PREFIX)/$(BINDIR)/
 
 uninstall clean:
 	@echo "uninstalling from \"$(PREFIX)\"..."
