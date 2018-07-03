@@ -40,7 +40,7 @@ broot_src="buildroot"
 kern_build="obj/linux-x86"
 broot_build="obj/buildroot-x86"
 # buildroot overlay (needed to use kernel modules inside buildroot)
-root="$proj_dir/$base/overlay'"
+root="$proj_dir/$base/overlay"
 kmod_dir="$root/lib/modules"
 # modules copied from here into the "$kmod_dir" overlay
 bmod_dir="$proj_dir/$base/$broot_build/target/usr/lib/modules"
@@ -49,17 +49,17 @@ bmod_dir="$proj_dir/$base/$broot_build/target/usr/lib/modules"
 #
 # internal script variables
 #
-save_dir="$PWD"
-out_dir="/foo/bar/oink/woof/i/am/best/placeholder"
+mod_args=()
+append_args=()
 build_type=""
-append_args=("")
-mod_args=("")
 sparse_flag=""
+out_dir="/foo/bar/oink/woof/i/am/best/placeholder"
+save_dir="$PWD"
 
 # usage information and build instructions
 readonly usage_short="usage: ${0##*/} {-b (buildroot)|-k (kernel)} [-chmns] [<build args>]"
 readonly usage_full="$(
-	printf '%s\n\n' "$usage_full;"
+	printf '%s\n\n' "$usage_full"
 	cat<<'EOF'
 	[instructions]:
 		after configuring your target build/source directories
@@ -211,6 +211,7 @@ perl -e "$date_hdr" | tee -a ../build.log.tmp
 
 # main build targets
 if [[ -n "$sparse_flag" ]]; then
+	# sparse logs everything to stderr
 	perl -e "$date_hdr" >> ../error.log.tmp
 	# with sparse
 	"${make_cmd[@]}" O="$out_dir" "${append_args[@]}" \
