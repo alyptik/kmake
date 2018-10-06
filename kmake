@@ -196,7 +196,7 @@ out_dir="$(realpath -e "${out_dir}" || printf '%s\n' '(error)')"
 # final command string printing
 printf 'executing: [%s %s %s]\n' \
 	"${rst}${ylw}${make_cmd[*]}${rst}" \
-	"${rst}${red}-j$((procs + 2)) O=${out_dir}${rst}" \
+	"${rst}${red}-j$((procs + 2)) -l$procs O=${out_dir}${rst}" \
 	"${rst}${grn}${append_args[*]}${rst}"
 printf 'build directory: [%s]\n' \
 	"${rst}${pnk}${src_dir}${rst}"
@@ -215,11 +215,11 @@ if [[ -n "$sparse_flag" ]]; then
 	# sparse logs everything to stderr
 	perl -e "$date_hdr" >> ../error.log.tmp
 	# with sparse
-	"${make_cmd[@]}" -j"$((procs + 2))" O="$out_dir" "${append_args[@]}" \
+	"${make_cmd[@]}" -j"$((procs + 2))" -l"$procs" O="$out_dir" "${append_args[@]}" \
 		2> >(tee -a ../error.log.tmp >&2) > >(tee -a ../build.log.tmp)
 else
 	# no sparse
-	"${make_cmd[@]}" -j"$((procs + 2))" O="$out_dir" "${append_args[@]}"
+	"${make_cmd[@]}" -j"$((procs + 2))" -l"$procs" O="$out_dir" "${append_args[@]}"
 fi
 
 # kernel module target (-k -m)
@@ -227,6 +227,6 @@ if [[ -n "${mod_args[*]}" && -n "$kmod_dir" && -n "$bmod_dir" ]]; then
 	# guard against empty parameters expanding to `rm -rf /*`
 	"${rm_cmd[@]}" -rf -- "${kmod_dir:?}"/* "${bmod_dir:?}"/*
 	# module install
-	"${make_cmd[@]}" -j"$((procs + 2))" O="$out_dir" "${mod_args[@]}" \
+	"${make_cmd[@]}" -j"$((procs + 2))" -l"$procs" O="$out_dir" "${mod_args[@]}" \
 		2> >(tee -a ../error.log.tmp >&2) > >(tee -a ../build.log.tmp)
 fi
